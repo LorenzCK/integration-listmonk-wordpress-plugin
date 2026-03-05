@@ -484,7 +484,7 @@ function listmonk_send_data_afer_checkout( $order_id ){
     $additional_fields = $order->get_meta('_additional_fields', true);
 
     // check for user newsletter consent
-   // $field_name = 'newsletter_optin'; // change this field to the name of your custom field for storing user consent in a checkbox
+    // $field_name = 'newsletter_optin'; // change this field to the name of your custom field for storing user consent in a checkbox
     $subscribed = '';
 
     if (listmonk_is_checkout_block_enabled()) {
@@ -504,7 +504,7 @@ function listmonk_send_data_afer_checkout( $order_id ){
             if(get_option('listmonk_debug') == 'yes'){
                 error_log($subscribed);
             }
-        }else{
+        } else {
             $subscribed == false;
         }
     }
@@ -548,7 +548,6 @@ function listmonk_send_data_afer_checkout( $order_id ){
         'name'  => $name,
         'email' => $email,
         'status' => 'enabled',
-        #'lists' => [2],
         'lists' => [(int)$listmonk_list_id],
         'attribs' => $attributes,
         'preconfirm_subscriptions' => true,

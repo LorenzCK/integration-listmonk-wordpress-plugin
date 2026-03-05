@@ -454,15 +454,29 @@ add_filter( 'wpcf7_before_send_mail', 'listmonk_send_data_through_contact_form_7
 add_action( 'woocommerce_thankyou', 'listmonk_send_data_afer_checkout', 10, 1 );
 function listmonk_send_data_afer_checkout( $order_id ){
     // check ff the listmonk checkout component is enabled in settings
-    if (get_option('listmonk_checkout_on') != 'yes') { 
+    if (get_option('listmonk_checkout_on') != 'yes') {
+        if(get_option('listmonk_debug') == 'yes') {
+            wc_get_logger()->debug('Listmonk checkout component not enabled', [
+                'source' => 'listmonk-integration',
+                'listmonk_checkout_on' => get_option('listmonk_checkout_on'),
+            ]);
+        }
+
         return;
     }
-    if( ! $order_id ){ // if order id is not set, return
+
+    if( !$order_id ){ // if order id is not set, return
+        wc_get_logger()->error('Order ID not provided', [
+            'source' => 'listmonk-integration',
+        ]);
         return;
     }
 
     if (!listmonk_are_listmonk_settings_configured()) {
         error_log("listmonk settings are not configured completely.");
+        wc_get_logger()->error('Listmonk settings are not configured completely', [
+            'source' => 'listmonk-integration',
+        ]);
         return; // Abort if settings are not configured
     }
 
@@ -497,6 +511,11 @@ function listmonk_send_data_afer_checkout( $order_id ){
     
 
     if ($subscribed != 'true' && $subscribed != '1') { // if user did not give consent, return
+        wc_get_logger()->info('Customer did not provide consent to subscribe', [
+            'source' => 'listmonk-integration',
+            'subscribed' => $subscribed,
+        ]);
+
         return;
     }
 
@@ -508,6 +527,12 @@ function listmonk_send_data_afer_checkout( $order_id ){
     $website_name = sanitize_text_field(get_bloginfo( 'name' )); // Retrieves the website's name from the WordPress database
 
     $listmonk_list_id = absint(get_option('listmonk_list_id', 0)); // get listmonk list id from settings page
+
+    wc_get_logger()->info('Subscribing customer to Listmonk mailing list', [
+        'source' => 'listmonk-integration',
+        'email' => $email,
+        'subscribed' => $subscribed,
+    ]);
 
     ## for listmonk
     $attributes = [
@@ -543,13 +568,52 @@ function listmonk_send_data_afer_checkout( $order_id ){
 
     // using the send_data_to_listmonk function we defined earlier, we communicate with the listmonk API through WordPress HTTP API
 
+    if(get_option('listmonk_debug') == 'yes'){
+        wc_get_logger()->debug('Sending subscription request to Listmonk API', [
+            'source' => 'listmonk-integration',
+            'url' => $url,
+            'username' => $listmonk_username,
+            'body' => $body,
+            'list_id' => $listmonk_list_id,
+        ]);
+    }
+
     $response = listmonk_send_data_to_listmonk_wordpress_http_api($url, $body, $listmonk_username, $listmonk_password);
 
+    if(get_option('listmonk_debug') == 'yes'){
+        wc_get_logger()->debug('Received response from Listmonk API', [
+            'source' => 'listmonk-integration',
+            'url' => $url,
+            'status_code' => $response['status_code'],
+            'body' => $response['body'],
+            'error_message' => $response['error_message'],
+        ]);
+    }
+
     if ($response['status_code'] == 200) {
+        wc_get_logger()->info('Customer subscribed to mailing list', [
+            'source' => 'listmonk-integration',
+            'email' => $email,
+            'list_id' => $listmonk_list_id,
+        ]);
+
         $order->add_order_note('Listmonk: customer subscribed to listmonk mailing list (ID = ' . $listmonk_list_id . ').');
-    }elseif($response['status_code'] == 409) {
+    } elseif ($response['status_code'] == 409) {
+        wc_get_logger()->info('Customer already subscribed to mailing list', [
+            'source' => 'listmonk-integration',
+            'email' => $email,
+            'list_id' => $listmonk_list_id,
+        ]);
+
         $order->add_order_note('Listmonk: Email address already exists in listmonk mailing list ' . $listmonk_list_id . ', customer had already subscribed.');
-    }else{
+    } else {
+        wc_get_logger()->error('Failed to subscribe customer to mailing list', [
+            'source' => 'listmonk-integration',
+            'email' => $email,
+            'list_id' => $listmonk_list_id,
+            'error_message' => $response['error_message'],
+        ]);
+
         $order->add_order_note($response['error_message']);
     }
 
